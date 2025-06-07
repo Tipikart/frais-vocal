@@ -392,3 +392,168 @@ function showPhoto(photoUrl) {
         modal.appendChild(errorMsg);
     };
 }
+
+async function exportPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Récupérer les données filtrées
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+    const month = document.getElementById('monthFilter').value;
+    const text = document.getElementById('textFilter').value.toLowerCase();
+    
+    let mStart = start, mEnd = end;
+    if (month) {
+        const [y, m] = month.split('-').map(Number);
+        const first = new Date(y, m - 1, 1);
+        const last = new Date(y, m, 0);
+        mStart = first.toISOString().slice(0,10);
+        mEnd = last.toISOString().slice(0,10);
+    }
+    
+    let filtered = expenses.filter(e => (!mStart || e.date >= mStart) && (!mEnd || e.date <= mEnd));
+    if (text) {
+        filtered = filtered.filter(e => Object.values(e).some(v => String(v).toLowerCase().includes(text)));
+    }
+    
+    // Titre
+    doc.setFontSize(16);
+    doc.text('Notes de Frais', 20, 20);
+    
+    // Période
+    let periode = 'Toutes les dépenses';
+    if (mStart && mEnd) {
+        periode = `Période: ${mStart} au ${mEnd}`;
+    } else if (month) {
+        const [y, m] = month.split('-');
+        const monthNames = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 
+                           'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+        periode = `Période: ${monthNames[parseInt(m)]} ${y}`;
+    }
+    
+    doc.setFontSize(10);
+    doc.text(periode, 20, 30);
+    
+    // Total
+    const total = filtered.reduce((sum, e) => sum + (parseFloat(e.montant) || 0), 0);
+    doc.text(`Total: ${total.toFixed(2)} €`, 20, 40);
+    
+    let yPosition = 55;
+    
+    // En-têtes
+    doc.setFontSize(8);
+    doc.text('Date', 20, yPosition);
+    doc.text('Montant', 50, yPosition);
+    doc.text('Fournisseur', 80, yPosition);
+    doc.text('Type', 120, yPosition);
+    doc.text('Mission', 150, yPosition);
+    doc.text('Photo', 180, yPosition);
+    
+    yPosition += 10;
+    
+    // Données avec gestion des photos
+    for (let i = 0; i < filtered.length; i++) {
+        const expense = filtered[i];
+        
+        // Vérifier si on dépasse la page
+        if (yPosition > 270) {
+            doc.addPage();
+            yPosition = 20;
+            // Répéter les en-têtes
+            doc.text('Date', 20, yPosition);
+            doc.text('Montant', 50, yPosition);
+            doc.text('Fournisseur', 80, yPosition);
+            doc.text('Type', 120, yPosition);
+            doc.text('Mission', 150, yPosition);
+            doc.text('Photo', 180, yPosition);
+            yPosition += 10;
+        }
+        
+        doc.text(expense.date || '', 20, yPosition);
+        doc.text(String(expense.montant || '') + ' €', 50, yPosition);
+        doc.text(truncateText(expense.fournisseur || '', 15), 80, yPosition);
+        doc.text(truncateText(expense.type_depense || '', 15), 120, yPosition);
+        doc.text(truncateText(expense.mission || '', 15), 150, yPosition);
+        
+        // Gestion des photos
+        if (expense.photo) {
+            try {
+                const imgData = await getImageAsBase64(expense.photo);
+                if (imgData) {
+                    // Ajouter une petite image
+                    doc.addImage(imgData, 'JPEG', 180, yPosition - 5, 15, 10);
+                } else {
+                    doc.text('Photo disponible', 180, yPosition);
+                }
+            } catch (error) {
+                doc.text('Photo disponible', 180, yPosition);
+            }
+        } else {
+            doc.text('-', 180, yPosition);
+        }
+        
+        yPosition += 15;
+    }
+    
+    // Générer le nom du fichier
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0,10);
+    let filename = `notes-de-frais-${dateStr}`;
+    if (month) {
+        const [y, m] = month.split('-');
+        filename = `notes-de-frais-${y}-${m.padStart(2, '0')}`;
+    }
+    
+    // Télécharger le PDF
+    doc.save(`${filename}.pdf`);
+}
+
+function truncateText(text, maxLength) {
+    if (!text) return '';
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+}
+
+async function getImageAsBase64(url) {
+    try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                // Redimensionner l'image si nécessaire
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Calculer les dimensions pour garder les proportions
+                    const maxWidth = 200;
+                    const maxHeight = 150;
+                    let { width, height } = img;
+                    
+                    if (width > maxWidth) {
+                        height = (height * maxWidth) / width;
+                        width = maxWidth;
+                    }
+                    if (height > maxHeight) {
+                        width = (width * maxHeight) / height;
+                        height = maxHeight;
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.7));
+                };
+                img.src = reader.result;
+            };
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        console.error('Erreur lors du chargement de l\'image:', error);
+        return null;
+    }
+}
