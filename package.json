@@ -1,16 +1,17 @@
 {
   "name": "frais-vocal",
   "version": "1.0.0",
+  "description": "Assistant vocal pour notes de frais",
+  "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.0",
-    "multer": "^1.4.5",
-    "dotenv": "^16.0.0"
+    "express": "4.18.2",
+    "multer": "1.4.4",
+    "dotenv": "16.3.1"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": "18.x"
   }
 }
