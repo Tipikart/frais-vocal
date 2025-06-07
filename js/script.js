@@ -208,32 +208,42 @@ function addPhoto(index) {
     input.type = 'file';
     input.accept = 'image/*';
     input.capture = 'environment';
-    input.onchange = () => {
+    input.onchange = async () => {
         const file = input.files[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async e => {
-    const formData = new FormData();
-    formData.append('photo', file);
+        
+        const formData = new FormData();
+        formData.append('photo', file);
 
-    const response = await fetch('/upload', {
-        method: 'POST',
-        body: formData
-    });
+        try {
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
 
-    const result = await response.json();
-    if (result.url) {
-        expenses[index].photo = result.url;
-        sendExpense(expenses[index]);
-        filterTable();
-    }
-};
-
-        reader.readAsDataURL(file);
+            const result = await response.json();
+            if (result.url) {
+                expenses[index].photo = result.url;
+                
+                // Mettre à jour la ligne dans le fichier JSON
+                const updateResponse = await fetch('/api/expenses', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(expenses[index])
+                });
+                
+                if (updateResponse.ok) {
+                    filterTable(); // Recharger le tableau
+                    updateSummary();
+                }
+            }
+        } catch (error) {
+            console.error('Erreur upload photo:', error);
+            alert('Erreur lors de l\'upload de la photo');
+        }
     };
     input.click();
 }
-
 function addExpense(data) {
     expenses.push(data);
     sendExpense(data);
@@ -297,14 +307,20 @@ function deleteExpense(index) {
     const expense = expenses[index];
     if (!expense) return;
 
-    fetch('/api/expenses', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(expense)
-    })
-    .then(() => {
-        expenses.splice(index, 1);
-        filterTable(); // recharge le tableau filtré
-    })
-    .catch(err => console.error('Erreur suppression :', err));
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette dépense ?')) {
+        fetch('/api/expenses', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(expense)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'ok') {
+                expenses.splice(index, 1);
+                filterTable(); // recharge le tableau filtré
+                updateSummary();
+            }
+        })
+        .catch(err => console.error('Erreur suppression :', err));
+    }
 }

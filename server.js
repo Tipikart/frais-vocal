@@ -49,18 +49,53 @@ app.post('/api/expenses', (req, res) => {
   }
 });
 app.delete('/api/expenses', (req, res) => {
-    const data = req.body;
-    expenses = expenses.filter(e =>
-        !(e.date === data.date &&
-          e.montant === data.montant &&
-          e.fournisseur === data.fournisseur &&
-          e.type_depense === data.type_depense &&
-          e.mission === data.mission &&
-          e.ligne_comptable === data.ligne_comptable)
+    const expenseToDelete = req.body;
+    const data = readData();
+    
+    // Filtrer les dépenses pour supprimer celle qui correspond
+    const filteredData = data.filter(expense => 
+        !(expense.date === expenseToDelete.date &&
+          expense.montant === expenseToDelete.montant &&
+          expense.fournisseur === expenseToDelete.fournisseur &&
+          expense.type_depense === expenseToDelete.type_depense &&
+          expense.mission === expenseToDelete.mission &&
+          expense.ligne_comptable === expenseToDelete.ligne_comptable)
     );
-    res.sendStatus(200);
+    
+    try {
+        writeData(filteredData);
+        res.json({ status: 'ok' });
+    } catch (e) {
+        res.status(500).json({ error: 'delete_failed' });
+    }
 });
 
+app.put('/api/expenses', (req, res) => {
+    const updatedExpense = req.body;
+    const data = readData();
+    
+    // Trouver et mettre à jour la dépense
+    const index = data.findIndex(expense => 
+        expense.date === updatedExpense.date &&
+        expense.montant === updatedExpense.montant &&
+        expense.fournisseur === updatedExpense.fournisseur &&
+        expense.type_depense === updatedExpense.type_depense &&
+        expense.mission === updatedExpense.mission &&
+        expense.ligne_comptable === updatedExpense.ligne_comptable
+    );
+    
+    if (index !== -1) {
+        data[index] = updatedExpense;
+        try {
+            writeData(data);
+            res.json({ status: 'ok' });
+        } catch (e) {
+            res.status(500).json({ error: 'update_failed' });
+        }
+    } else {
+        res.status(404).json({ error: 'expense_not_found' });
+    }
+});
 
 app.post('/upload', upload.single('photo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
