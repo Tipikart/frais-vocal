@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Assistant Notes de Frais Vocal</title>
+    <link rel="stylesheet" href="css/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#4CAF50">
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js');
+    });
+  }
+</script>
+</head>
+<body>
+    <h1>Assistant Vocal - Notes de Frais</h1>
+    <div class="actions">
+        <button onclick="startRecognition()">🎤 Démarrer</button>
+        <button onclick="exportCSV()">💾 Exporter CSV</button>
+    </div>
+    <div class="filters">
+        <label>Du <input type="date" id="startDate"></label>
+        <label>au <input type="date" id="endDate"></label>
+        <label>Période <input type="month" id="monthFilter"></label>
+        <label>Recherche <input type="text" id="textFilter" oninput="filterTable()"></label>
+        <button onclick="filterTable()">Filtrer</button>
+        <button onclick="resetFilters()">Réinitialiser</button>
+    </div>
+    <p id="transcript">Appuyez pour parler...</p>
+    <pre id="output"></pre>
+
+    <table id="expense-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Montant</th>
+                <th>Fournisseur</th>
+                <th>Type</th>
+                <th>Mission</th>
+                <th>Ligne comptable</th>
+                <th>Justificatif</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <p id="summary"></p>
+
+    <script src="js/script.js"></script>
+</body>
+</html>
+

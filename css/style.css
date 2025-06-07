@@ -1,0 +1,52 @@
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    text-align: center;
+    margin-top: 40px;
+    background: #f9f9f9;
+    color: #333;
+}
+.actions button,
+.filters button {
+    margin: 5px;
+}
+.filters {
+    margin-top: 20px;
+}
+button {
+    font-size: 1em;
+    padding: 10px 20px;
+    background: #1976d2;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+button:hover {
+    background: #135ba1;
+}
+#transcript {
+    margin-top: 20px;
+    font-size: 1.1em;
+    color: #1976d2;
+}
+pre {
+    margin-top: 20px;
+    text-align: left;
+    display: inline-block;
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+table {
+    width: 90%;
+    border-collapse: collapse;
+    margin: 20px auto;
+}
+th, td {
+    border: 1px solid #ccc;
+    padding: 8px;
+}
+thead {
+    background: #eee;
+}
