@@ -183,12 +183,13 @@ function addRow(data) {
     row.insertCell(4).innerText = data.mission;
     row.insertCell(5).innerText = data.ligne_comptable;
     const photoCell = row.insertCell(6);
+    
     if (data.photo) {
-        const link = document.createElement('a');
-        link.href = data.photo;
-        link.target = '_blank';
-        link.textContent = 'Voir';
-        photoCell.appendChild(link);
+        const btn = document.createElement('button');
+        btn.textContent = '👁️ Voir';
+        btn.style.background = '#4CAF50';
+        btn.onclick = () => showPhoto(data.photo);
+        photoCell.appendChild(btn);
     } else {
         const btn = document.createElement('button');
         btn.textContent = '📷';
@@ -196,7 +197,7 @@ function addRow(data) {
         photoCell.appendChild(btn);
     }
 
-       const deleteCell = row.insertCell(7);
+    const deleteCell = row.insertCell(7);
     const deleteBtn = document.createElement('button');
     deleteBtn.textContent = '🗑️';
     deleteBtn.onclick = () => deleteExpense(index);
@@ -323,4 +324,71 @@ function deleteExpense(index) {
         })
         .catch(err => console.error('Erreur suppression :', err));
     }
+}
+
+function showPhoto(photoUrl) {
+    // Créer une modal pour afficher la photo
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        padding: 20px;
+        box-sizing: border-box;
+    `;
+    
+    const img = document.createElement('img');
+    img.src = photoUrl;
+    img.style.cssText = `
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 8px;
+    `;
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '❌ Fermer';
+    closeBtn.style.cssText = `
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: #ff4444;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+    `;
+    
+    closeBtn.onclick = () => document.body.removeChild(modal);
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            document.body.removeChild(modal);
+        }
+    };
+    
+    modal.appendChild(img);
+    modal.appendChild(closeBtn);
+    document.body.appendChild(modal);
+    
+    // Gérer l'erreur de chargement d'image
+    img.onerror = () => {
+        img.style.display = 'none';
+        const errorMsg = document.createElement('div');
+        errorMsg.textContent = 'Impossible de charger l\'image';
+        errorMsg.style.cssText = `
+            color: white;
+            font-size: 18px;
+            text-align: center;
+        `;
+        modal.appendChild(errorMsg);
+    };
 }
