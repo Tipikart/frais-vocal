@@ -8,11 +8,30 @@
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#4CAF50">
 <script>
-  if ('serviceWorker' in navigator) {
+  // Vérifier si on est en local ou en production
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  
+  if ('serviceWorker' in navigator && !isLocal) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js');
+      navigator.serviceWorker.register('/sw.js')
+        .then(registration => {
+          console.log('SW registered: ', registration);
+        })
+        .catch(registrationError => {
+          console.log('SW registration failed: ', registrationError);
+          // Continue sans service worker si ça échoue
+        });
     });
   }
+  
+  // Timeout pour forcer le chargement si ça traîne
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      if (document.readyState === 'complete') {
+        console.log('Application chargée');
+      }
+    }, 2000);
+  });
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>

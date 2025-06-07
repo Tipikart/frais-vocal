@@ -104,6 +104,29 @@ const filePath = `${req.protocol}://${req.get('host')}/uploads/${req.file.filena
   res.json({ url: filePath });
 });
 
+// Keep-alive pour éviter que Render endorme le service
+const keepAlive = () => {
+  setInterval(() => {
+    // Ping interne toutes les 14 minutes
+    const req = require('http').request({
+      hostname: 'localhost',
+      port: port,
+      path: '/api/expenses',
+      method: 'GET'
+    }, (res) => {
+      console.log('Keep-alive ping:', res.statusCode);
+    });
+    req.on('error', (err) => {
+      console.log('Keep-alive error:', err.message);
+    });
+    req.end();
+  }, 14 * 60 * 1000); // 14 minutes
+};
+
+// Démarrer le keep-alive seulement en production
+if (process.env.NODE_ENV === 'production') {
+  keepAlive();
+}
 
 app.listen(port, () => {
   console.log(`Assistant de notes de frais en écoute sur http://127.0.0.1:${port}`);
