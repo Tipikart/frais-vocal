@@ -412,19 +412,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Initialiser l'interface
     const btn = document.querySelector('button[onclick="startRecognition()"]');
-    if (btn) {
-        btn.disabled = false;
-        btn.textContent = '🎤 Nouvelle dépense';
-    }
-    
     const statusElement = document.getElementById('transcript');
-    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
-        statusElement.innerText = 'Cliquez sur "Nouvelle dépense" pour commencer, puis dictez votre dépense en langage naturel : (Jai dépensé X euros, à la station/au snack/a la librairie etc... pour un repas/de l essence/des fournitures etc... pour la mission atelier/réunion/vernissage etc...)';
-    } else {
-        statusElement.innerText = 'Reconnaissance vocale non supportée. Saisie manuelle disponible.';
-    }
-    statusElement.className = 'transcript';
     
+    // Vérifier les limites au chargement
+    try {
+        const response = await fetch('/api/limits');
+        const limits = await response.json();
+        
+        if (limits.remaining <= 0) {
+            statusElement.innerText = '⚠️ Limite de 5 dépenses atteinte pour votre adresse IP. Cette limitation protège le service durant la phase de test.';
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '❌ Limite atteinte';
+            }
+        } else {
+            // Configuration normale
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '🎤 Nouvelle dépense';
+            }
+            
+            if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                let message = 'Cliquez sur "Nouvelle dépense" pour commencer, puis dictez votre dépense en langage naturel : (Jai dépensé X euros, à la station/au snack/a la librairie etc... pour un repas/de l essence/des fournitures etc... pour la mission atelier/réunion/vernissage etc...)';
+                
+                // Ajouter l'info sur les dépenses restantes si proche de la limite
+                if (limits.remaining <= 2) {
+                    message = `⚠️ ${limits.remaining} dépense(s) restante(s) pour votre IP. ` + message;
+                } else if (limits.remaining < 5) {
+                    message = `${limits.remaining} dépenses restantes. ` + message;
+                }
+                
+                statusElement.innerText = message;
+            } else {
+                statusElement.innerText = 'Reconnaissance vocale non supportée. Saisie manuelle disponible.';
+            }
+        }
+    } catch (err) {
+        console.log('Pas de vérification de limite possible');
+        
+        // Configuration par défaut en cas d'erreur
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🎤 Nouvelle dépense';
+        }
+        
+        if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+            statusElement.innerText = 'Cliquez sur "Nouvelle dépense" pour commencer, puis dictez votre dépense en langage naturel : (Jai dépensé X euros, à la station/au snack/a la librairie etc... pour un repas/de l essence/des fournitures etc... pour la mission atelier/réunion/vernissage etc...)';
+        } else {
+            statusElement.innerText = 'Reconnaissance vocale non supportée. Saisie manuelle disponible.';
+        }
+    }
+    
+    statusElement.className = 'transcript';
     console.log('Application initialisée avec succès');
 });
 
@@ -611,21 +650,40 @@ function addExpense(data) {
     })
     .then(r => r.json())
     .then(result => {
-        if (result.status === 'ok' && result.id) {
-            // Utiliser l'ID du serveur
-            data.id = result.id;
-            expenses.push(data);
-            addRow(data);
-            updateSummary();
-            console.log('Dépense ajoutée avec ID serveur:', result.id);
-        } else {
-            alert('Erreur lors de l\'ajout de la dépense');
+    if (result.status === 'ok' && result.id) {
+        // Utiliser l'ID du serveur
+        data.id = result.id;
+        expenses.push(data);
+        addRow(data);
+        updateSummary();
+        
+        // Afficher le nombre de dépenses restantes
+        if (result.remaining !== undefined) {
+            if (result.remaining <= 1) {
+                document.getElementById('transcript').innerText = 
+                    `Dépense ajoutée ! ⚠️ ${result.remaining} dépense(s) restante(s)`;
+            } else {
+                document.getElementById('transcript').innerText = 
+                    `Dépense ajoutée ! ${result.remaining} dépenses restantes`;
+            }
         }
-    })
-    .catch(err => {
-        console.error('Erreur sauvegarde:', err);
+        
+        console.log('Dépense ajoutée avec ID serveur:', result.id);
+    } else {
         alert('Erreur lors de l\'ajout de la dépense');
-    });
+    }
+})
+    .catch(err => {
+    console.error('Erreur sauvegarde:', err);
+    
+    // Vérifier si c'est une erreur de limite
+    if (err.response && err.response.status === 429) {
+        alert('⚠️ LIMITE ATTEINTE\n\nVous avez atteint la limite de 5 dépenses par adresse IP.\nCette limitation est en place pour protéger le service durant la phase de test.');
+        document.getElementById('transcript').innerText = 'Limite de 5 dépenses atteinte pour votre adresse IP';
+    } else {
+        alert('Erreur lors de l\'ajout de la dépense');
+    }
+});
 }
 
 function filterTable() {

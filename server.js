@@ -13,6 +13,36 @@ const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 
 
+// Stockage en mémoire des compteurs par IP
+const ipCounters = new Map();
+const MAX_EXPENSES_PER_IP = 5;
+
+// Fonction pour obtenir l'IP réelle
+function getRealIP(req) {
+    return req.headers['x-forwarded-for'] || 
+           req.headers['x-real-ip'] || 
+           req.connection.remoteAddress || 
+           req.socket.remoteAddress ||
+           req.ip;
+}
+
+// Middleware de limitation
+function checkIPLimit(req, res, next) {
+    const ip = getRealIP(req);
+    const count = ipCounters.get(ip) || 0;
+    
+    if (count >= MAX_EXPENSES_PER_IP) {
+        return res.status(429).json({ 
+            error: 'limit_exceeded',
+            message: `Limite de ${MAX_EXPENSES_PER_IP} dépenses atteinte pour cette adresse IP`,
+            remaining: 0
+        });
+    }
+    
+    req.userIP = ip;
+    next();
+}
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.json({ limit: '20mb' }));
 app.use(express.static(__dirname));
@@ -116,7 +146,7 @@ app.get('/api/openai-key', (req, res) => {
     res.json({ key: process.env.OPENAI_API_KEY });
 });
 
-app.post('/api/expenses', (req, res) => {
+app.post('/api/expenses', checkIPLimit, (req, res) => {
   const expense = req.body;
   
   // Ajouter un ID unique si pas présent
@@ -127,14 +157,40 @@ app.post('/api/expenses', (req, res) => {
   const data = readData();
   data.push(expense);
   
-  try {
+try {
     writeData(data);
+    
+    // Incrémenter le compteur IP
+    const currentCount = ipCounters.get(req.userIP) || 0;
+    ipCounters.set(req.userIP, currentCount + 1);
+    
+    const remaining = MAX_EXPENSES_PER_IP - (currentCount + 1);
+    
     console.log('Dépense ajoutée avec ID:', expense.id);
-    res.json({ status: 'ok', id: expense.id });
-  } catch (e) {
+    console.log(`IP ${req.userIP}: ${currentCount + 1}/${MAX_EXPENSES_PER_IP} dépenses`);
+    
+    res.json({ 
+        status: 'ok', 
+        id: expense.id,
+        remaining: remaining
+    });
+} catch (e) {
     console.error('Erreur ajout dépense:', e);
     res.status(500).json({ error: 'save_failed' });
   }
+});
+
+// Route pour vérifier les limites
+app.get('/api/limits', (req, res) => {
+    const ip = getRealIP(req);
+    const count = ipCounters.get(ip) || 0;
+    const remaining = MAX_EXPENSES_PER_IP - count;
+    
+    res.json({
+        used: count,
+        remaining: Math.max(0, remaining),
+        limit: MAX_EXPENSES_PER_IP
+    });
 });
 
 app.delete('/api/expenses', (req, res) => {
