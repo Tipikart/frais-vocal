@@ -2,74 +2,100 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Assistant Notes de Frais Vocal</title>
+    <title>Notes de Frais</title>
     <link rel="stylesheet" href="css/style.css">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#4CAF50">
-<script>
-  // Vérifier si on est en local ou en production
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  
-  if ('serviceWorker' in navigator && !isLocal) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js')
-        .then(registration => {
-          console.log('SW registered: ', registration);
-        })
-        .catch(registrationError => {
-          console.log('SW registration failed: ', registrationError);
-          // Continue sans service worker si ça échoue
+    <meta name="theme-color" content="#1a1a1a">
+    <script>
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (document.readyState === 'complete') {
+                    console.log('Application chargée');
+                }
+            }, 2000);
         });
-    });
-  }
-  
-  // Timeout pour forcer le chargement si ça traîne
-  window.addEventListener('load', () => {
-    setTimeout(() => {
-      if (document.readyState === 'complete') {
-        console.log('Application chargée');
-      }
-    }, 2000);
-  });
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    </script>
+    <!-- Retour à la reconnaissance Google + fallback simple -->
+    <script>
+        // Fonction simple pour initialiser
+        window.initVosk = async function() {
+            console.log('Reconnaissance vocale prête');
+            return true;
+        };
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
-    <h1>Assistant Vocal - Notes de Frais</h1>
-   <div class="actions">
-    <button onclick="startRecognition()">🎤 Démarrer</button>
-    <button onclick="exportCSV()">💾 Exporter CSV</button>
-    <button onclick="exportPDF()">📄 Exporter PDF</button>
-</div>
-    <div class="filters">
-        <label>Du <input type="date" id="startDate"></label>
-        <label>au <input type="date" id="endDate"></label>
-        <label>Période <input type="month" id="monthFilter"></label>
-        <label>Recherche <input type="text" id="textFilter" oninput="filterTable()"></label>
-        <button onclick="filterTable()">Filtrer</button>
-        <button onclick="resetFilters()">Réinitialiser</button>
-    </div>
-    <p id="transcript">Appuyez pour parler...</p>
-    <pre id="output"></pre>
+    <header class="header">
+        <div class="container">
+            <h1>Notes de Frais</h1>
+        </div>
+    </header>
 
-    <table id="expense-table">
+    <div class="container">
+        <div class="control-panel">
+            <div class="actions">
+                <button class="btn primary" onclick="startRecognition()">
+                    🎤 Nouvelle dépense
+                </button>
+                <button class="btn secondary" onclick="exportCSV()">
+                    💾 Export CSV
+                </button>
+                <button class="btn secondary" onclick="exportPDF()">
+                    📄 Export PDF
+                </button>
+            </div>
+            
+          <div class="filters">
+    <div class="filter-group">
+        <label>Utilisateur</label>
+        <select id="userFilter" class="filter-input" onchange="filterTable()">
+            <option value="">Tous les utilisateurs</option>
+        </select>
+    </div>
+    <div class="filter-group">
+        <label>Mois</label>
+        <input type="month" id="monthFilter" class="filter-input" onchange="filterTable()">
+    </div>
+    <div class="filter-group">
+        <label>Recherche</label>
+        <input type="text" id="textFilter" class="filter-input" placeholder="Rechercher..." oninput="filterTable()">
+    </div>
+   <div class="filter-actions">
+    <button class="btn" onclick="addUser()">👤 Nouvel utilisateur</button>
+    <button class="btn" onclick="showUserManagement()">⚙️ Gérer utilisateurs</button>
+    <button class="btn secondary" onclick="resetFilters()">Réinitialiser</button>
+</div>
+</div>
+        </div>
+
+        <div class="status-section">
+            <div id="transcript" class="transcript">Cliquez sur "Nouvelle dépense" pour commencer</div>
+            <pre id="output" class="output" style="display: none;"></pre>
+        </div>
+
+      <div class="table-container">
+    <table id="expense-table" class="table">
         <thead>
             <tr>
+                <th>Utilisateur</th>
                 <th>Date</th>
                 <th>Montant</th>
                 <th>Fournisseur</th>
                 <th>Type</th>
                 <th>Mission</th>
                 <th>Ligne comptable</th>
-                <th>Justificatif</th>
+                <th>Photo</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody></tbody>
     </table>
-    <p id="summary"></p>
+</div>
+
+        <div id="summary" class="summary">Total: 0.00 €</div>
+    </div>
 
     <script src="js/script.js"></script>
 </body>
 </html>
-

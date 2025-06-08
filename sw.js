@@ -1,11 +1,10 @@
-const cacheName = 'frais-vocal-cache-v2'; // Change la version
+const cacheName = 'frais-vocal-cache-v5';
 const filesToCache = [
   '/',
   '/index.html',
-  '/js/script.js', // Corrige le chemin
-  '/css/style.css', // Ajoute le CSS
+  '/js/script.js',
+  '/css/style.css',
   '/manifest.json'
-  // Retire les icônes qui n'existent pas
 ];
 
 self.addEventListener('install', e => {
@@ -14,15 +13,12 @@ self.addEventListener('install', e => {
     caches.open(cacheName)
       .then(cache => {
         console.log('Caching files...');
-        return cache.addAll(filesToCache);
-      })
-      .catch(err => {
-        console.error('Cache failed:', err);
-        // Continue même si le cache échoue
-        return Promise.resolve();
+        return cache.addAll(filesToCache).catch(err => {
+          console.warn('Some files failed to cache:', err);
+          return Promise.resolve();
+        });
       })
   );
-  // Force l'activation immédiate
   self.skipWaiting();
 });
 
@@ -40,23 +36,25 @@ self.addEventListener('activate', e => {
       );
     })
   );
-  // Prend le contrôle immédiatement
   return self.clients.claim();
 });
 
 self.addEventListener('fetch', e => {
+  // Ne pas intercepter les requêtes vers des CDN externes
+  if (e.request.url.includes('cdnjs.cloudflare.com') || 
+      e.request.url.includes('cdn.')) {
+    return; // Laisser passer normalement
+  }
+  
   e.respondWith(
     fetch(e.request)
       .then(response => {
-        // Si la requête réussit, retourne la réponse
-        if (response.ok) {
+        if (response && response.ok) {
           return response;
         }
-        // Sinon essaie le cache
         return caches.match(e.request);
       })
       .catch(() => {
-        // En cas d'erreur réseau, utilise le cache
         return caches.match(e.request);
       })
   );

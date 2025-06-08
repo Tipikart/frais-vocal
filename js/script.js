@@ -1,63 +1,489 @@
 const expenses = [];
 
+
+let users = [];
+let currentUser = null;
+
+// Charger les utilisateurs
+function loadUsers() {
+    fetch('/api/users')
+        .then(r => r.json())
+        .then(data => {
+            users = data;
+            updateUserSelect();
+            if (users.length === 0) {
+                // Créer un utilisateur par défaut
+                addUser('Utilisateur principal');
+            }
+        })
+        .catch(() => {
+            // Créer un utilisateur par défaut si erreur
+            addUser('Utilisateur principal');
+        });
+}
+
+function fixDatesInExpenses() {
+    const currentYear = new Date().getFullYear();
+    let corrected = 0;
+    
+    expenses.forEach(expense => {
+        if (expense.date) {
+            const date = new Date(expense.date);
+            if (date.getFullYear() < 2024) {
+                date.setFullYear(currentYear);
+                expense.date = date.toISOString().slice(0, 10);
+                corrected++;
+                
+                // Mettre à jour sur le serveur
+                if (expense.id) {
+                    fetch('/api/expenses', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(expense)
+                    });
+                }
+            }
+        }
+        
+        // Corriger aussi les dates "aujourd'hui" qui ne sont pas converties
+        if (expense.date === "aujourd'hui") {
+            expense.date = new Date().toISOString().slice(0, 10);
+            corrected++;
+            
+            // Mettre à jour sur le serveur
+            if (expense.id) {
+                fetch('/api/expenses', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(expense)
+                });
+            }
+        }
+    });
+    
+    if (corrected > 0) {
+        console.log(`${corrected} dates corrigées automatiquement`);
+        filterTable(); // Recharger l'affichage
+    }
+}
+
+function deleteUser(userId) {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+    
+    // Vérifier s'il reste au moins un utilisateur
+    if (users.length <= 1) {
+        alert('Impossible de supprimer le dernier utilisateur.');
+        return;
+    }
+    
+    // Vérifier si l'utilisateur a des dépenses
+    const userExpenses = expenses.filter(e => e.userId === userId);
+    if (userExpenses.length > 0) {
+        alert(`Impossible de supprimer ${user.name}. Cet utilisateur a ${userExpenses.length} dépense(s). Supprimez d'abord ses dépenses.`);
+        return;
+    }
+    
+    if (confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur "${user.name}" ?`)) {
+        fetch('/api/users', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: userId })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'ok') {
+                // Supprimer du tableau local
+                const index = users.findIndex(u => u.id === userId);
+                if (index !== -1) {
+                    users.splice(index, 1);
+                }
+                updateUserSelect();
+                
+                // Réinitialiser le filtre si l'utilisateur supprimé était sélectionné
+                const userFilter = document.getElementById('userFilter');
+                if (userFilter.value === userId) {
+                    userFilter.value = '';
+                    filterTable();
+                }
+                
+                console.log('Utilisateur supprimé avec succès');
+            } else {
+                alert('Erreur lors de la suppression: ' + (result.error || 'Erreur inconnue'));
+            }
+        })
+        .catch(err => {
+            console.error('Erreur suppression utilisateur:', err);
+            alert('Erreur lors de la suppression');
+        });
+    }
+}
+
+function showUserManagement() {
+    let html = `
+        <div style="max-width: 500px; margin: 20px auto; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 2px 15px rgba(0,0,0,0.1);">
+            <h3 style="margin-bottom: 20px; color: #1a1a1a;">Gestion des utilisateurs</h3>
+            <div style="margin-bottom: 20px;">
+                <button class="btn primary" onclick="addUser(); closeUserManagement();">➕ Nouvel utilisateur</button>
+            </div>
+            <div style="border-top: 1px solid #e9ecef; padding-top: 20px;">
+    `;
+    
+    users.forEach(user => {
+        const userExpenseCount = expenses.filter(e => e.userId === user.id).length;
+        html += `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f3f4;">
+                <div>
+                    <strong>${user.name}</strong>
+                    <br><small style="color: #666;">${userExpenseCount} dépense(s)</small>
+                </div>
+                <button class="action-btn delete" onclick="deleteUser('${user.id}'); closeUserManagement();" 
+                        ${users.length <= 1 ? 'disabled title="Impossible de supprimer le dernier utilisateur"' : ''}>
+                    🗑️
+                </button>
+            </div>
+        `;
+    });
+    
+    html += `
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn secondary" onclick="closeUserManagement()">Fermer</button>
+            </div>
+        </div>
+    `;
+    
+    // Créer la modal
+    const modal = document.createElement('div');
+    modal.id = 'userManagementModal';
+    modal.className = 'modal';
+    modal.innerHTML = html;
+    
+    // Fermer en cliquant à côté
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            closeUserManagement();
+        }
+    };
+    
+    document.body.appendChild(modal);
+}
+
+function closeUserManagement() {
+    const modal = document.getElementById('userManagementModal');
+    if (modal) {
+        document.body.removeChild(modal);
+    }
+    // Recharger la liste pour mettre à jour les compteurs
+    updateUserSelect();
+    filterTable();
+}
+
+function updateUserSelect() {
+    const select = document.getElementById('userFilter');
+    select.innerHTML = '<option value="">Tous les utilisateurs</option>';
+    
+    users.forEach(user => {
+        const option = document.createElement('option');
+        option.value = user.id;
+        option.textContent = user.name;
+        select.appendChild(option);
+    });
+}
+
+function addUser(userName = null) {
+    const name = userName || prompt('Nom du nouvel utilisateur :');
+    if (!name || name.trim() === '') return;
+    
+    const user = {
+        id: Date.now().toString(),
+        name: name.trim(),
+        createdAt: new Date().toISOString()
+    };
+    
+    fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(user)
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.status === 'ok') {
+            users.push(user);
+            updateUserSelect();
+            // Sélectionner automatiquement le nouvel utilisateur
+            document.getElementById('userFilter').value = user.id;
+            currentUser = user.id;
+        }
+    })
+    .catch(err => console.error('Erreur création utilisateur:', err));
+}
+
+function getCurrentUser() {
+    const select = document.getElementById('userFilter');
+    return select.value || (users[0] ? users[0].id : null);
+}
+
 function loadExpenses() {
+    expenses.length = 0; // Vider le tableau
     fetch('/api/expenses')
         .then(r => r.json())
         .then(data => {
+            console.log('Chargement des dépenses:', data.length, 'trouvées');
             data.forEach(e => {
+                // Ajouter un ID si pas présent (pour rétrocompatibilité)
+                if (!e.id) {
+                    e.id = Date.now() + Math.random();
+                }
+                // Ajouter un userId si pas présent
+                if (!e.userId && users.length > 0) {
+                    e.userId = users[0].id;
+                }
                 expenses.push(e);
                 addRow(e);
             });
             updateSummary();
         })
-        .catch(() => {});
+        .catch(err => {
+            console.error('Erreur chargement:', err);
+        });
 }
 
-document.addEventListener('DOMContentLoaded', loadExpenses);
+
+
+// Variables Vosk
+let voskProcessor;
+let audioContext;
+let finalTranscript = '';
+let currentTranscript = '';
+let isRecording = false;
+let audioStream = null;
+async function initializeVosk() {
+    try {
+        const statusElement = document.getElementById('transcript');
+        statusElement.innerText = 'Moteur vocal prêt ! Cliquez sur "Nouvelle dépense" pour commencer.';
+        statusElement.className = 'transcript';
+        
+        // Activer le bouton
+        const btn = document.querySelector('button[onclick="startRecognition()"]');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🎤 Nouvelle dépense';
+        }
+    } catch (error) {
+        console.error('Erreur initialisation:', error);
+        document.getElementById('transcript').innerText = 'Erreur: Impossible d\'initialiser la reconnaissance vocale.';
+    }
+}
+
+
 
 function sendExpense(data) {
     fetch('/api/expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
-    }).catch(() => {});
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.id) {
+            data.id = result.id; // Sauvegarder l'ID retourné
+        }
+    })
+    .catch(err => {
+        console.error('Erreur sauvegarde:', err);
+    });
 }
 
-function startRecognition() {
+
+
+async function startRecognition() {
+    // Vérifier si l'API Web Speech est disponible
+    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+        startRecognitionGoogle();
+    } else {
+        // Fallback pour Firefox et autres
+        document.getElementById('transcript').innerText = 'Reconnaissance vocale non supportée. Utilisez Chrome, Edge ou Safari.';
+    }
+}
+
+function startRecognitionGoogle() {
     const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
     recognition.lang = 'fr-FR';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    
+    document.getElementById('transcript').innerText = '🎤 Parlez maintenant...';
+    document.getElementById('transcript').className = 'transcript active';
+    
+    // Changer le bouton pendant l'enregistrement
+    const btn = document.querySelector('button[onclick="startRecognition()"]');
+    btn.textContent = '🎤 En cours...';
+    btn.disabled = true;
+    
     recognition.start();
 
     recognition.onresult = async function(event) {
-        const speechResult = event.results[0][0].transcript;
-        document.getElementById('transcript').innerText = speechResult;
-
-        const output = await parseSpeechWithGPT(speechResult);
-        document.getElementById('output').innerText = JSON.stringify(output, null, 2);
-        if (output && output.montant) {
-            addExpense(output);
+        const result = event.results[event.results.length - 1];
+        const transcript = result[0].transcript;
+        
+        if (result.isFinal) {
+            document.getElementById('transcript').innerText = transcript;
+            document.getElementById('transcript').className = 'transcript';
+            
+            // Remettre le bouton normal
+            btn.textContent = '🎤 Nouvelle dépense';
+            btn.disabled = false;
+            
+            const output = await parseSpeechWithGPT(transcript);
+            document.getElementById('output').style.display = 'block';
+            document.getElementById('output').innerText = JSON.stringify(output, null, 2);
+            
+            if (output && output.montant) {
+                addExpense(output);
+            }
+        } else {
+            // Résultats intermédiaires
+            document.getElementById('transcript').innerText = transcript + '...';
         }
     };
 
     recognition.onerror = function(event) {
-        document.getElementById('transcript').innerText = 'Erreur : ' + event.error;
+        console.error('Erreur reconnaissance:', event.error);
+        document.getElementById('transcript').innerText = 'Erreur de reconnaissance. Réessayez.';
+        document.getElementById('transcript').className = 'transcript';
+        
+        // Remettre le bouton normal
+        btn.textContent = '🎤 Nouvelle dépense';
+        btn.disabled = false;
+    };
+
+    recognition.onend = function() {
+        document.getElementById('transcript').className = 'transcript';
+        
+        // Remettre le bouton normal
+        btn.textContent = '🎤 Nouvelle dépense';
+        btn.disabled = false;
     };
 }
+function stopRecording() {
+    if (isRecording) {
+        // Finaliser la reconnaissance
+        if (window.voskRecognizer) {
+            const finalResult = JSON.parse(window.voskRecognizer.finalResult());
+            if (finalResult.text) {
+                finalTranscript += finalResult.text;
+            }
+        }
+        
+        const transcript = finalTranscript.trim();
+        
+        if (transcript && transcript.length > 3) {
+            document.getElementById('transcript').innerText = transcript;
+            document.getElementById('transcript').className = 'transcript';
+            
+            // Analyser avec ChatGPT
+            parseSpeechWithGPT(transcript).then(output => {
+                document.getElementById('output').style.display = 'block';
+                document.getElementById('output').innerText = JSON.stringify(output, null, 2);
+                
+                if (output && output.montant) {
+                    addExpense(output);
+                }
+            });
+        } else {
+            document.getElementById('transcript').innerText = 'Message trop court ou non reconnu. Réessayez.';
+        }
+        
+        cleanupVosk();
+    }
+}
+
+function updateRecordingUI(recording) {
+    const btn = document.querySelector('button[onclick="startRecognition()"]');
+    const transcript = document.getElementById('transcript');
+    
+    if (recording) {
+        btn.textContent = '⏹️ Arrêter';
+        btn.className = 'btn primary recording';
+    } else {
+        btn.textContent = '🎤 Nouvelle dépense';
+        btn.className = 'btn primary';
+    }
+}
+
+function cleanupVosk() {
+    if (voskProcessor) {
+        voskProcessor.disconnect();
+        voskProcessor = null;
+    }
+    if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+    }
+    if (audioStream) {
+        audioStream.getTracks().forEach(track => track.stop());
+        audioStream = null;
+    }
+    
+    isRecording = false;
+    updateRecordingUI(false);
+    finalTranscript = '';
+    currentTranscript = '';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Désactiver le bouton vocal pendant l'initialisation
+    const btn = document.querySelector('button[onclick="startRecognition()"]');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Chargement...';
+    }
+    
+    loadUsers();
+    setTimeout(() => {
+        loadExpenses();
+        setTimeout(fixDatesInExpenses, 1000);
+        
+        // Initialiser Whisper après le chargement des données
+        setTimeout(initializeVosk, 500);
+    }, 500);
+});
+
+// Supprimer les anciennes fonctions
+function hasWebSpeechAPI() {
+    return false; // Forcer Vosk uniquement
+}
+
+async function hasVoskSupport() {
+    return true; // Toujours disponible
+}
+
 
 
 async function parseSpeechWithGPT(text) {
     const res = await fetch('/api/openai-key');
     const { key } = await res.json();
+    
+    // Obtenir la date actuelle
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentDate = today.toISOString().slice(0, 10);
+    
     const prompt = `
 Tu es un assistant qui extrait des données comptables à partir de phrases en français.
 
+INFORMATION IMPORTANTE : Nous sommes actuellement en ${currentYear}. La date d'aujourd'hui est ${currentDate}.
+
 Extrait les éléments suivants depuis la phrase fournie :
-- date (format ISO 8601, ou aujourd’hui si non précisé)
+- date (format ISO 8601 YYYY-MM-DD, utilise ${currentDate} si "aujourd'hui" ou aucune date précisée, assure-toi d'utiliser l'année ${currentYear} pour toute date sans année spécifiée)
 - montant (numérique, sans €)
 - type_depense (ex: essence, repas, train…)
 - fournisseur (ex: Total, SNCF…)
 - mission (ex: région réunion, formation Paris…)
 - ligne_comptable = DEP-TYPE-FOURNISSEUR-MISSION (chaînes en MAJUSCULES, espaces remplacés par _)
+
+IMPORTANT : Si aucune année n'est mentionnée dans la phrase, utilise TOUJOURS ${currentYear}. Ne jamais utiliser 2022 ou 2023.
 
 Retourne **uniquement** un objet JSON strictement valide.
 
@@ -69,7 +495,6 @@ Phrase : "${text}"
         headers: {
             "Content-Type": "application/json",
             "Authorization": "Bearer " + key
-
         },
         body: JSON.stringify({
             model: "gpt-3.5-turbo",
@@ -81,7 +506,22 @@ Phrase : "${text}"
     const data = await response.json();
     const message = data.choices?.[0]?.message?.content;
     try {
-        return JSON.parse(message);
+        const result = JSON.parse(message);
+        
+        // Double vérification de la date côté client
+        if (result.date) {
+            const date = new Date(result.date);
+            const year = date.getFullYear();
+            
+            // Si l'année est antérieure à 2024, la corriger
+            if (year < 2024) {
+                date.setFullYear(currentYear);
+                result.date = date.toISOString().slice(0, 10);
+                console.log('Date corrigée automatiquement:', result.date);
+            }
+        }
+        
+        return result;
     } catch (e) {
         console.error("Erreur GPT JSON :", message);
         return null;
@@ -89,122 +529,48 @@ Phrase : "${text}"
 }
 
 
-function wordsToNumber(str) {
-    const numbers = {
-        'zero':0,'zéro':0,'un':1,'une':1,'deux':2,'trois':3,'quatre':4,'cinq':5,
-        'six':6,'sept':7,'huit':8,'neuf':9,'dix':10,'onze':11,'douze':12,'treize':13,
-        'quatorze':14,'quinze':15,'seize':16,'dix-sept':17,'dix-huit':18,'dix-neuf':19,
-        'vingt':20,'trente':30,'quarante':40,'cinquante':50,'soixante':60,
-        'soixante-dix':70,'septante':70,'quatre-vingt':80,'quatre-vingt-dix':90,
-        'huitante':80,'nonante':90
-    };
-    str = str.toLowerCase().replace(/-/g, ' ');
-    if (numbers[str] !== undefined) {
-        return numbers[str];
-    }
-    let total = 0;
-    str.split(' ').forEach(word => {
-        if(numbers[word] !== undefined) {
-            total += numbers[word];
-        }
-    });
-    return total || null;
-}
 
-function parseDate(text) {
-    const months = {
-        'janvier':1,'février':2,'fevrier':2,'mars':3,'avril':4,'mai':5,'juin':6,
-        'juillet':7,'août':8,'aout':8,'septembre':9,'octobre':10,'novembre':11,
-        'décembre':12,'decembre':12
-    };
-    text = text.toLowerCase();
-    if (text.includes("aujourd'hui")) return new Date().toISOString().slice(0,10);
-    if (text.includes('hier')) {
-        const d = new Date();
-        d.setDate(d.getDate()-1);
-        return d.toISOString().slice(0,10);
-    }
-    const m = text.match(/(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)(?:\s+(\d{4}))?/i);
-    if (m) {
-        const day = parseInt(m[1],10);
-        const month = months[m[2]] - 1;
-        const year = m[3] ? parseInt(m[3],10) : new Date().getFullYear();
-        const d = new Date(year, month, day);
-        return d.toISOString().slice(0,10);
-    }
-    return new Date().toISOString().slice(0,10);
-}
 
-function parseSpeech(text) {
-    let montantMatch = text.match(/(?:\b|\D)(\d+(?:[\.,]\d{1,2})?)\s*(?:euros?|€)/i);
-    let montant = montantMatch ? montantMatch[1].replace(',', '.') : null;
-    if (!montant) {
-        const words = text.match(/([a-zA-Z\-\s]+)\s*(?:euros?|\u20ac)/i);
-        if (words) {
-            const number = wordsToNumber(words[1]);
-            if (number) montant = number;
-        }
-    }
-    const type = text.match(/\b(d'|de |du |des )?(essence|repas|logement|avion|train|restaurant|carburant|hôtel|location)/i);
-    const missionMatch = text.match(/mission\s+([\w\d\s-]+)/i);
-    let mission = null;
-    if (missionMatch) {
-        mission = missionMatch[1].split(/\s+(?:pour|chez|de|du|des)\b/i)[0].trim();
-    }
-    const fournisseurMatch = text.match(/(?:chez|\u00e0|au|aux)\s+(.+)/i);
-    let fournisseur = null;
-    if (fournisseurMatch) {
-        let rest = fournisseurMatch[1];
-        rest = rest.replace(/^(la|le|les|un|une|l')\s+/i, '');
-        rest = rest.split(/\s+(?:pour|mission|de|du|des)\b/i)[0];
-        fournisseur = rest.trim();
-    }
-
-    return {
-        date: parseDate(text),
-        montant: montant ? parseFloat(montant) : null,
-        fournisseur: fournisseur || null,
-        type_depense: type ? type[2] : null,
-        mission: mission,
-        ligne_comptable: montant
-            ? `DEP-${(type ? type[2] : 'XXX').toUpperCase()}-${(fournisseur ? fournisseur : 'FOU').toUpperCase()}-${(mission ? mission : 'MISS').toUpperCase()}`
-            : 'N/A'
-    };
-}
 
 function addRow(data) {
     const table = document.getElementById('expense-table').getElementsByTagName('tbody')[0];
     const row = table.insertRow();
-    const index = expenses.indexOf(data);
-    row.insertCell(0).innerText = data.date;
-    row.insertCell(1).innerText = data.montant;
-    row.insertCell(2).innerText = data.fournisseur;
-    row.insertCell(3).innerText = data.type_depense;
-    row.insertCell(4).innerText = data.mission;
-    row.insertCell(5).innerText = data.ligne_comptable;
-    const photoCell = row.insertCell(6);
     
+    // Utiliser l'ID au lieu de l'index
+    row.dataset.expenseId = data.id;
+    
+    row.insertCell(0).innerText = data.userName || 'Inconnu';
+    row.insertCell(1).innerText = data.date;
+    row.insertCell(2).innerText = data.montant + ' €';
+    row.insertCell(3).innerText = data.fournisseur || '-';
+    row.insertCell(4).innerText = data.type_depense || '-';
+    row.insertCell(5).innerText = data.mission || '-';
+    row.insertCell(6).innerText = data.ligne_comptable || '-';
+    
+    const photoCell = row.insertCell(7);
     if (data.photo) {
         const btn = document.createElement('button');
-        btn.textContent = '👁️ Voir';
-        btn.style.background = '#4CAF50';
+        btn.textContent = 'Voir';
+        btn.className = 'action-btn photo';
         btn.onclick = () => showPhoto(data.photo);
         photoCell.appendChild(btn);
     } else {
         const btn = document.createElement('button');
         btn.textContent = '📷';
-        btn.onclick = () => addPhoto(index);
+        btn.className = 'action-btn';
+        btn.onclick = () => addPhoto(data.id);
         photoCell.appendChild(btn);
     }
 
-    const deleteCell = row.insertCell(7);
+    const actionCell = row.insertCell(8);
     const deleteBtn = document.createElement('button');
     deleteBtn.textContent = '🗑️';
-    deleteBtn.onclick = () => deleteExpense(index);
-    deleteCell.appendChild(deleteBtn);
+    deleteBtn.className = 'action-btn delete';
+    deleteBtn.onclick = () => deleteExpense(data.id);
+    actionCell.appendChild(deleteBtn);
 }
 
-function addPhoto(index) {
+function addPhoto(expenseId) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -224,18 +590,22 @@ function addPhoto(index) {
 
             const result = await response.json();
             if (result.url) {
-                expenses[index].photo = result.url;
-                
-                // Mettre à jour la ligne dans le fichier JSON
-                const updateResponse = await fetch('/api/expenses', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(expenses[index])
-                });
-                
-                if (updateResponse.ok) {
-                    filterTable(); // Recharger le tableau
-                    updateSummary();
+                // Trouver la dépense par ID
+                const expense = expenses.find(e => String(e.id) === String(expenseId));
+                if (expense) {
+                    expense.photo = result.url;
+                    
+                    // Mettre à jour sur le serveur
+                    const updateResponse = await fetch('/api/expenses', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(expense)
+                    });
+                    
+                    if (updateResponse.ok) {
+                        filterTable(); // Recharger le tableau
+                        updateSummary();
+                    }
                 }
             }
         } catch (error) {
@@ -245,7 +615,17 @@ function addPhoto(index) {
     };
     input.click();
 }
+
 function addExpense(data) {
+    // Ajouter un ID temporaire
+    if (!data.id) {
+        data.id = Date.now() + Math.random();
+    }
+    
+    // Ajouter l'utilisateur actuel
+    data.userId = getCurrentUser();
+    data.userName = users.find(u => u.id === data.userId)?.name || 'Inconnu';
+    
     expenses.push(data);
     sendExpense(data);
     addRow(data);
@@ -253,11 +633,11 @@ function addExpense(data) {
 }
 
 function filterTable() {
-    const start = document.getElementById('startDate').value;
-    const end = document.getElementById('endDate').value;
+    const userFilter = document.getElementById('userFilter').value;
     const month = document.getElementById('monthFilter').value;
     const text = document.getElementById('textFilter').value.toLowerCase();
-    let mStart = start, mEnd = end;
+    
+    let mStart = null, mEnd = null;
     if (month) {
         const [y, m] = month.split('-').map(Number);
         const first = new Date(y, m - 1, 1);
@@ -265,19 +645,29 @@ function filterTable() {
         mStart = first.toISOString().slice(0,10);
         mEnd = last.toISOString().slice(0,10);
     }
+    
     const tbody = document.getElementById('expense-table').getElementsByTagName('tbody')[0];
     tbody.innerHTML = '';
-    let filtered = expenses.filter(e => (!mStart || e.date >= mStart) && (!mEnd || e.date <= mEnd));
-    if (text) {
-        filtered = filtered.filter(e => Object.values(e).some(v => String(v).toLowerCase().includes(text)));
-    }
+    
+    let filtered = expenses.filter(e => {
+        // Filtre par utilisateur
+        if (userFilter && e.userId !== userFilter) return false;
+        
+        // Filtre par mois
+        if (mStart && mEnd && (e.date < mStart || e.date > mEnd)) return false;
+        
+        // Filtre par texte
+        if (text && !Object.values(e).some(v => String(v).toLowerCase().includes(text))) return false;
+        
+        return true;
+    });
+    
     filtered.forEach(addRow);
     updateSummary(filtered);
 }
 
 function resetFilters() {
-    document.getElementById('startDate').value = '';
-    document.getElementById('endDate').value = '';
+    document.getElementById('userFilter').value = '';
     document.getElementById('monthFilter').value = '';
     document.getElementById('textFilter').value = '';
     filterTable();
@@ -285,7 +675,7 @@ function resetFilters() {
 
 function updateSummary(list = expenses) {
     const total = list.reduce((sum, e) => sum + (parseFloat(e.montant) || 0), 0);
-    document.getElementById('summary').innerText = 'Total: ' + total.toFixed(2) + ' \u20ac';
+    document.getElementById('summary').innerText = `Total: ${total.toFixed(2)} € (${list.length} dépense${list.length > 1 ? 's' : ''})`;
 }
 
 function exportCSV() {
@@ -304,96 +694,92 @@ function exportCSV() {
     URL.revokeObjectURL(url);
 }
 
-function deleteExpense(index) {
-    const expense = expenses[index];
-    if (!expense) return;
-
+function deleteExpense(expenseId) {
     if (confirm('Êtes-vous sûr de vouloir supprimer cette dépense ?')) {
+        console.log('Suppression de la dépense ID:', expenseId);
+        
         fetch('/api/expenses', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(expense)
+            body: JSON.stringify({ id: expenseId })
         })
         .then(response => response.json())
         .then(result => {
             if (result.status === 'ok') {
-                expenses.splice(index, 1);
+                // Supprimer du tableau local
+                const index = expenses.findIndex(e => String(e.id) === String(expenseId));
+                if (index !== -1) {
+                    expenses.splice(index, 1);
+                }
                 filterTable(); // recharge le tableau filtré
                 updateSummary();
+                console.log('Suppression réussie');
+            } else {
+                console.error('Erreur suppression:', result);
+                alert('Erreur lors de la suppression: ' + (result.error || 'Erreur inconnue'));
             }
         })
-        .catch(err => console.error('Erreur suppression :', err));
+        .catch(err => {
+            console.error('Erreur suppression :', err);
+            alert('Erreur lors de la suppression');
+        });
     }
 }
-
 function showPhoto(photoUrl) {
-    // Créer une modal pour afficher la photo
     const modal = document.createElement('div');
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.8);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-        padding: 20px;
-        box-sizing: border-box;
-    `;
+    modal.className = 'modal';
+    
+    const content = document.createElement('div');
+    content.className = 'modal-content';
     
     const img = document.createElement('img');
     img.src = photoUrl;
-    img.style.cssText = `
-        max-width: 100%;
-        max-height: 100%;
-        object-fit: contain;
-        border-radius: 8px;
-    `;
     
     const closeBtn = document.createElement('button');
-    closeBtn.textContent = '❌ Fermer';
-    closeBtn.style.cssText = `
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        background: #ff4444;
-        color: white;
-        border: none;
-        padding: 10px 15px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 16px;
-    `;
-    
+    closeBtn.className = 'modal-close';
+    closeBtn.textContent = '✕';
     closeBtn.onclick = () => document.body.removeChild(modal);
+    
     modal.onclick = (e) => {
         if (e.target === modal) {
             document.body.removeChild(modal);
         }
     };
     
-    modal.appendChild(img);
-    modal.appendChild(closeBtn);
+    content.appendChild(img);
+    content.appendChild(closeBtn);
+    modal.appendChild(content);
     document.body.appendChild(modal);
     
-    // Gérer l'erreur de chargement d'image
     img.onerror = () => {
         img.style.display = 'none';
         const errorMsg = document.createElement('div');
         errorMsg.textContent = 'Impossible de charger l\'image';
-        errorMsg.style.cssText = `
-            color: white;
-            font-size: 18px;
-            text-align: center;
-        `;
-        modal.appendChild(errorMsg);
+        errorMsg.style.cssText = 'padding: 40px; text-align: center; color: #666;';
+        content.appendChild(errorMsg);
     };
 }
 
 async function exportPDF() {
+    // Charger jsPDF dynamiquement si pas encore chargé
+    if (typeof window.jspdf === 'undefined') {
+        try {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js';
+            document.head.appendChild(script);
+            
+            await new Promise((resolve, reject) => {
+                script.onload = resolve;
+                script.onerror = reject;
+            });
+            
+            console.log('jsPDF chargé dynamiquement');
+        } catch (error) {
+            alert('Impossible de charger jsPDF. Vérifiez votre connexion internet.');
+            return;
+        }
+    }
+    
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     

@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const port = 3000;
@@ -11,103 +12,189 @@ const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-
 app.use(express.json({ limit: '20mb' }));
-
 app.use(express.static(__dirname));
 
 function readData() {
   try {
-    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    return data;
   } catch (e) {
     return [];
   }
 }
 
+const USERS_FILE = path.join(__dirname, 'users.json');
+
+function readUsers() {
+  try {
+    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+  } catch (e) {
+    return [];
+  }
+}
+
+function writeUsers(data) {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2));
+    console.log('Utilisateurs sauvegardés:', data.length);
+  } catch (e) {
+    console.error('Erreur écriture utilisateurs:', e);
+  }
+}
+
+app.delete('/api/users', (req, res) => {
+  const userId = req.body.id;
+  const users = readUsers();
+  const expenses = readData();
+  
+  console.log('Tentative suppression utilisateur ID:', userId);
+  
+  // Vérifier qu'il reste au moins un utilisateur
+  if (users.length <= 1) {
+    return res.status(400).json({ error: 'cannot_delete_last_user' });
+  }
+  
+  // Vérifier si l'utilisateur a des dépenses
+  const userExpenses = expenses.filter(e => e.userId === userId);
+  if (userExpenses.length > 0) {
+    return res.status(400).json({ 
+      error: 'user_has_expenses', 
+      expenseCount: userExpenses.length 
+    });
+  }
+  
+  // Supprimer l'utilisateur
+  const filteredUsers = users.filter(user => user.id !== userId);
+  
+  try {
+    writeUsers(filteredUsers);
+    console.log('Utilisateur supprimé:', userId);
+    res.json({ status: 'ok' });
+  } catch (e) {
+    console.error('Erreur suppression utilisateur:', e);
+    res.status(500).json({ error: 'delete_failed' });
+  }
+});
+
+app.get('/api/users', (req, res) => {
+  res.json(readUsers());
+});
+
+app.post('/api/users', (req, res) => {
+  const user = req.body;
+  const users = readUsers();
+  users.push(user);
+  
+  try {
+    writeUsers(users);
+    res.json({ status: 'ok' });
+  } catch (e) {
+    res.status(500).json({ error: 'save_failed' });
+  }
+});
 function writeData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    console.log('Données sauvegardées:', data.length, 'dépenses');
+  } catch (e) {
+    console.error('Erreur écriture fichier:', e);
+  }
 }
 
 app.get('/api/expenses', (req, res) => {
-  res.json(readData());
+  const data = readData();
+  console.log('Lecture des dépenses:', data.length, 'dépenses trouvées');
+  res.json(data);
 });
 
 app.get('/api/openai-key', (req, res) => {
     res.json({ key: process.env.OPENAI_API_KEY });
 });
 
-
 app.post('/api/expenses', (req, res) => {
+  const expense = req.body;
+  
+  // Ajouter un ID unique si pas présent
+  if (!expense.id) {
+    expense.id = uuidv4();
+  }
+  
   const data = readData();
-  data.push(req.body);
+  data.push(expense);
+  
   try {
     writeData(data);
-    res.json({ status: 'ok' });
+    console.log('Dépense ajoutée avec ID:', expense.id);
+    res.json({ status: 'ok', id: expense.id });
   } catch (e) {
+    console.error('Erreur ajout dépense:', e);
     res.status(500).json({ error: 'save_failed' });
   }
 });
+
 app.delete('/api/expenses', (req, res) => {
-    const expenseToDelete = req.body;
-    const data = readData();
-    
-    // Filtrer les dépenses pour supprimer celle qui correspond
-    const filteredData = data.filter(expense => 
-        !(expense.date === expenseToDelete.date &&
-          expense.montant === expenseToDelete.montant &&
-          expense.fournisseur === expenseToDelete.fournisseur &&
-          expense.type_depense === expenseToDelete.type_depense &&
-          expense.mission === expenseToDelete.mission &&
-          expense.ligne_comptable === expenseToDelete.ligne_comptable)
-    );
-    
-    try {
-        writeData(filteredData);
-        res.json({ status: 'ok' });
-    } catch (e) {
-        res.status(500).json({ error: 'delete_failed' });
-    }
+  const expenseId = req.body.id;
+  const data = readData();
+  
+  console.log('Tentative suppression ID:', expenseId);
+  console.log('Dépenses avant suppression:', data.length);
+  console.log('IDs disponibles:', data.map(e => e.id));
+  
+  const filteredData = data.filter(expense => String(expense.id) !== String(expenseId));
+  
+  console.log('Dépenses après suppression:', filteredData.length);
+  
+  if (filteredData.length === data.length) {
+    console.log('Aucune dépense supprimée - ID non trouvé:', expenseId);
+    return res.status(404).json({ error: 'expense_not_found', searchedId: expenseId });
+  }
+  
+  try {
+    writeData(filteredData);
+    console.log('Suppression réussie pour ID:', expenseId);
+    res.json({ status: 'ok' });
+  } catch (e) {
+    console.error('Erreur suppression:', e);
+    res.status(500).json({ error: 'delete_failed' });
+  }
 });
 
 app.put('/api/expenses', (req, res) => {
-    const updatedExpense = req.body;
-    const data = readData();
-    
-    // Trouver et mettre à jour la dépense
-    const index = data.findIndex(expense => 
-        expense.date === updatedExpense.date &&
-        expense.montant === updatedExpense.montant &&
-        expense.fournisseur === updatedExpense.fournisseur &&
-        expense.type_depense === updatedExpense.type_depense &&
-        expense.mission === updatedExpense.mission &&
-        expense.ligne_comptable === updatedExpense.ligne_comptable
-    );
-    
-    if (index !== -1) {
-        data[index] = updatedExpense;
-        try {
-            writeData(data);
-            res.json({ status: 'ok' });
-        } catch (e) {
-            res.status(500).json({ error: 'update_failed' });
-        }
-    } else {
-        res.status(404).json({ error: 'expense_not_found' });
-    }
+  const updatedExpense = req.body;
+  const expenseId = updatedExpense.id;
+  const data = readData();
+  
+  console.log('Tentative mise à jour ID:', expenseId);
+  
+  const index = data.findIndex(expense => String(expense.id) === String(expenseId));
+  
+  if (index === -1) {
+    console.log('Dépense non trouvée pour mise à jour:', expenseId);
+    return res.status(404).json({ error: 'expense_not_found' });
+  }
+  
+  data[index] = updatedExpense;
+  
+  try {
+    writeData(data);
+    console.log('Mise à jour réussie pour ID:', expenseId);
+    res.json({ status: 'ok' });
+  } catch (e) {
+    console.error('Erreur mise à jour:', e);
+    res.status(500).json({ error: 'update_failed' });
+  }
 });
 
 app.post('/upload', upload.single('photo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-const filePath = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-
+  const filePath = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
   res.json({ url: filePath });
 });
 
 // Keep-alive pour éviter que Render endorme le service
 const keepAlive = () => {
   setInterval(() => {
-    // Ping interne toutes les 14 minutes
     const req = require('http').request({
       hostname: 'localhost',
       port: port,
@@ -131,4 +218,3 @@ if (process.env.NODE_ENV === 'production') {
 app.listen(port, () => {
   console.log(`Assistant de notes de frais en écoute sur http://127.0.0.1:${port}`);
 });
-
