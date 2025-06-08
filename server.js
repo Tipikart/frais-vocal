@@ -1,4 +1,5 @@
 const express = require('express');
+
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
@@ -10,6 +11,7 @@ require('dotenv').config();
 
 const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
+
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.json({ limit: '20mb' }));
@@ -42,6 +44,8 @@ function writeUsers(data) {
     console.error('Erreur écriture utilisateurs:', e);
   }
 }
+
+
 
 app.delete('/api/users', (req, res) => {
   const userId = req.body.id;

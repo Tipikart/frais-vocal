@@ -16,13 +16,7 @@
         });
     </script>
     <!-- Retour à la reconnaissance Google + fallback simple -->
-    <script>
-        // Fonction simple pour initialiser
-        window.initVosk = async function() {
-            console.log('Reconnaissance vocale prête');
-            return true;
-        };
-    </script>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -34,17 +28,11 @@
 
     <div class="container">
         <div class="control-panel">
-            <div class="actions">
-                <button class="btn primary" onclick="startRecognition()">
-                    🎤 Nouvelle dépense
-                </button>
-                <button class="btn secondary" onclick="exportCSV()">
-                    💾 Export CSV
-                </button>
-                <button class="btn secondary" onclick="exportPDF()">
-                    📄 Export PDF
-                </button>
-            </div>
+           <div class="actions">
+    <button class="btn primary" onclick="startRecognition()">
+        🎤 Nouvelle dépense
+    </button>
+</div>
             
           <div class="filters">
     <div class="filter-group">
@@ -93,9 +81,21 @@
     </table>
 </div>
 
-        <div id="summary" class="summary">Total: 0.00 €</div>
+        <div class="summary-section">
+    <div id="summary" class="summary">Total: 0.00 €</div>
+    <div class="export-actions">
+        <button class="btn secondary" onclick="exportCSV()">
+            💾 Exporter en CSV
+        </button>
+        <button class="btn secondary" onclick="exportPDF()">
+            📄 Exporter en PDF
+        </button>
+    </div>
+</div>
     </div>
 
-    <script src="js/script.js"></script>
+   
+
+<script src="js/script.js"></script>
 </body>
 </html>

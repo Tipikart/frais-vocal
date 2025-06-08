@@ -1,120 +1,24 @@
 [
   {
     "date": "2025-06-08",
-    "montant": 10,
-    "type_depense": "essence",
-    "fournisseur": "station essence de Saint Pierre",
-    "mission": null,
-    "ligne_comptable": "DEP-ESSENCE-STATION_ESSENCE_DE_SAINT_PIERRE-",
-    "id": 1749394706488.2793,
-    "photo": "http://127.0.0.1:3000/uploads/595bde392e0b84e46ff83049afa9aed1"
-  },
-  {
-    "date": "2025-05-08",
     "montant": 12,
-    "type_depense": "REPAS",
-    "fournisseur": "STATION_DU_TAMPON",
-    "mission": null,
-    "ligne_comptable": "DEP-REPAS-STATION_DU_TAMPON-",
-    "id": 1749394751243.4177
-  },
-  {
-    "date": "2025-06-08",
-    "montant": 10,
-    "type_depense": "essence",
-    "fournisseur": "",
-    "mission": "",
-    "ligne_comptable": "DEP-ESSENCE--",
-    "id": 1749395449495.4387,
-    "userId": "1749395420974",
-    "userName": "Kolkol"
-  },
-  {
-    "date": "2025-06-08",
-    "montant": 12,
-    "type_depense": "autre",
-    "fournisseur": "expression de Saint-Pierre",
-    "mission": "",
-    "ligne_comptable": "DEP-AUTRE-EXPRESSION_DE_SAINT-PIERRE-",
-    "id": 1749396890558.7158,
-    "userId": "1749395415067",
-    "userName": "Utilisateur principal"
-  },
-  {
-    "date": "2025-06-08",
-    "montant": 12,
-    "type_depense": "effort",
-    "fournisseur": "station de Saint-Pierre",
-    "mission": "",
-    "ligne_comptable": "DEP-EFFORT-STATION_DE_SAINT-PIERRE-",
-    "id": 1749396907126.2783,
-    "userId": "1749395415067",
-    "userName": "Utilisateur principal"
-  },
-  {
-    "date": "2025-06-08",
-    "montant": 12,
-    "type_depense": "essence",
-    "fournisseur": "STATION_DE_SAINTE_LEUX",
-    "mission": null,
-    "ligne_comptable": "DEP-ESSENCE-STATION_DE_SAINTE_LEUX-",
-    "id": 1749397281096.2212,
-    "userId": "1749395415067",
-    "userName": "Utilisateur principal"
-  },
-  {
-    "date": "2025-06-08",
-    "montant": 18,
-    "type_depense": "essence",
-    "fournisseur": "station de Saint-Pierre",
-    "mission": null,
-    "ligne_comptable": "DEP-ESSENCE-STATION_DE_SAINT-PIERRE-",
-    "id": 1749397311093.8193,
-    "userId": "1749395415067",
-    "userName": "Utilisateur principal"
-  },
-  {
-    "date": "2025-06-08",
-    "montant": 15,
-    "type_depense": "REPAS",
-    "fournisseur": "STATION_DE_100_PIERRES",
-    "mission": null,
-    "ligne_comptable": "DEP-REPAS-STATION_DE_100_PIERRES-",
-    "id": 1749397389607.3853,
-    "userId": "1749395415067",
-    "userName": "Utilisateur principal"
-  },
-  {
-    "date": "2025-06-08",
-    "montant": 22,
-    "type_depense": "repartement",
-    "fournisseur": "inconnu",
-    "mission": "inconnu",
-    "ligne_comptable": "DEP-REPARTEMENT-INCONNU-INCONNU",
-    "id": 1749397408283.632,
-    "userId": "1749395415067",
-    "userName": "Utilisateur principal"
-  },
-  {
-    "date": "2025-06-08",
-    "montant": 12,
-    "type_depense": "essence",
-    "fournisseur": "station essence",
-    "mission": null,
-    "ligne_comptable": "DEP-ESSENCE-STATION_ESSENCE-",
-    "id": 1749399241708.3093,
-    "userId": "1749395415067",
-    "userName": "Utilisateur principal"
-  },
-  {
-    "date": "2025-06-08",
-    "montant": 18,
     "type_depense": "REPAS",
     "fournisseur": "STATION_ESSENCE",
     "mission": null,
     "ligne_comptable": "DEP-REPAS-STATION_ESSENCE-",
-    "id": 1749399251301.729,
-    "userId": "1749395415067",
-    "userName": "Utilisateur principal"
+    "userId": "1749395420974",
+    "userName": "Kolkol",
+    "id": "b47212a3-d10a-421b-b0a4-0d2807b9c1a5"
+  },
+  {
+    "date": "2025-06-08",
+    "montant": 65,
+    "type_depense": "frais de vernissage",
+    "fournisseur": "carrefour",
+    "mission": "",
+    "ligne_comptable": "DEP-FRAIS_DE_VERNISSAGE-CARREFOUR-",
+    "userId": "1749395420974",
+    "userName": "Kolkol",
+    "id": "835940c3-4d75-467d-9d7a-a2b8d85a2e13"
   }
 ]

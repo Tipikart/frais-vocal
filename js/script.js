@@ -226,22 +226,29 @@ function getCurrentUser() {
 
 function loadExpenses() {
     expenses.length = 0; // Vider le tableau
+    
+    // Vider le tableau HTML
+    const tbody = document.getElementById('expense-table').getElementsByTagName('tbody')[0];
+    tbody.innerHTML = '';
+    
     fetch('/api/expenses')
         .then(r => r.json())
         .then(data => {
             console.log('Chargement des dépenses:', data.length, 'trouvées');
             data.forEach(e => {
-                // Ajouter un ID si pas présent (pour rétrocompatibilité)
-                if (!e.id) {
-                    e.id = Date.now() + Math.random();
-                }
                 // Ajouter un userId si pas présent
                 if (!e.userId && users.length > 0) {
                     e.userId = users[0].id;
+                    e.userName = users[0].name;
+                }
+                // Récupérer le nom d'utilisateur
+                if (e.userId && !e.userName) {
+                    const user = users.find(u => u.id === e.userId);
+                    e.userName = user ? user.name : 'Utilisateur supprimé';
                 }
                 expenses.push(e);
-                addRow(e);
             });
+            filterTable(); // Utiliser filterTable au lieu d'addRow
             updateSummary();
         })
         .catch(err => {
@@ -249,62 +256,14 @@ function loadExpenses() {
         });
 }
 
-
-
-// Variables Vosk
-let voskProcessor;
-let audioContext;
-let finalTranscript = '';
-let currentTranscript = '';
-let isRecording = false;
-let audioStream = null;
-async function initializeVosk() {
-    try {
-        const statusElement = document.getElementById('transcript');
-        statusElement.innerText = 'Moteur vocal prêt ! Cliquez sur "Nouvelle dépense" pour commencer.';
-        statusElement.className = 'transcript';
-        
-        // Activer le bouton
-        const btn = document.querySelector('button[onclick="startRecognition()"]');
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = '🎤 Nouvelle dépense';
-        }
-    } catch (error) {
-        console.error('Erreur initialisation:', error);
-        document.getElementById('transcript').innerText = 'Erreur: Impossible d\'initialiser la reconnaissance vocale.';
-    }
-}
-
-
-
-function sendExpense(data) {
-    fetch('/api/expenses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    })
-    .then(r => r.json())
-    .then(result => {
-        if (result.id) {
-            data.id = result.id; // Sauvegarder l'ID retourné
-        }
-    })
-    .catch(err => {
-        console.error('Erreur sauvegarde:', err);
-    });
-}
-
-
-
 async function startRecognition() {
-    // Vérifier si l'API Web Speech est disponible
-    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
-        startRecognitionGoogle();
-    } else {
-        // Fallback pour Firefox et autres
-        document.getElementById('transcript').innerText = 'Reconnaissance vocale non supportée. Utilisez Chrome, Edge ou Safari.';
+    // Vérifier le support
+    if (!('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+        showManualInput();
+        return;
     }
+    
+    startRecognitionGoogle();
 }
 
 function startRecognitionGoogle() {
@@ -312,11 +271,18 @@ function startRecognitionGoogle() {
     recognition.lang = 'fr-FR';
     recognition.continuous = false;
     recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    
+    // Ajouter ces nouvelles options
+    try {
+        recognition.serviceURI = 'wss://www.google.com/speech-api/v2/recognize';
+    } catch (e) {
+        console.log('ServiceURI non supporté');
+    }
     
     document.getElementById('transcript').innerText = '🎤 Parlez maintenant...';
     document.getElementById('transcript').className = 'transcript active';
     
-    // Changer le bouton pendant l'enregistrement
     const btn = document.querySelector('button[onclick="startRecognition()"]');
     btn.textContent = '🎤 En cours...';
     btn.disabled = true;
@@ -331,135 +297,136 @@ function startRecognitionGoogle() {
             document.getElementById('transcript').innerText = transcript;
             document.getElementById('transcript').className = 'transcript';
             
-            // Remettre le bouton normal
             btn.textContent = '🎤 Nouvelle dépense';
             btn.disabled = false;
             
-            const output = await parseSpeechWithGPT(transcript);
-            document.getElementById('output').style.display = 'block';
-            document.getElementById('output').innerText = JSON.stringify(output, null, 2);
-            
-            if (output && output.montant) {
-                addExpense(output);
-            }
+           const output = await parseSpeechWithGPT(transcript);
+document.getElementById('output').style.display = 'block';
+document.getElementById('output').innerText = JSON.stringify(output, null, 2);
+
+if (validateExpenseData(output)) {
+    addExpense(output);
+} else {
+    document.getElementById('transcript').innerText = 'Données incomplètes extraites. Réessayez ou utilisez la saisie manuelle.';
+    setTimeout(showManualInput, 2000);
+}
         } else {
-            // Résultats intermédiaires
             document.getElementById('transcript').innerText = transcript + '...';
         }
     };
 
-    recognition.onerror = function(event) {
-        console.error('Erreur reconnaissance:', event.error);
-        document.getElementById('transcript').innerText = 'Erreur de reconnaissance. Réessayez.';
-        document.getElementById('transcript').className = 'transcript';
-        
-        // Remettre le bouton normal
-        btn.textContent = '🎤 Nouvelle dépense';
-        btn.disabled = false;
-    };
+   recognition.onerror = function(event) {
+    console.error('Erreur reconnaissance:', event.error);
+    
+    let errorMessage = 'Erreur de reconnaissance.';
+    let shouldShowManualInput = false;
+    
+    switch(event.error) {
+        case 'network':
+            errorMessage = 'Problème de connexion internet.';
+            shouldShowManualInput = true;
+            break;
+        case 'no-speech':
+            errorMessage = 'Aucune parole détectée. Réessayez.';
+            break;
+        case 'audio-capture':
+            errorMessage = 'Problème microphone. Vérifiez les permissions.';
+            shouldShowManualInput = true;
+            break;
+        case 'not-allowed':
+            errorMessage = 'Permissions microphone refusées.';
+            shouldShowManualInput = true;
+            break;
+        case 'service-not-allowed':
+            errorMessage = 'Service de reconnaissance non autorisé.';
+            shouldShowManualInput = true;
+            break;
+        default:
+            errorMessage = `Erreur: ${event.error}`;
+            shouldShowManualInput = true;
+    }
+    
+    document.getElementById('transcript').innerText = errorMessage;
+    if (shouldShowManualInput) {
+        document.getElementById('transcript').innerText += ' → Saisie manuelle activée.';
+        setTimeout(showManualInput, 2000);
+    }
+    document.getElementById('transcript').className = 'transcript';
+    
+    btn.textContent = '🎤 Nouvelle dépense';
+    btn.disabled = false;
+};
 
     recognition.onend = function() {
         document.getElementById('transcript').className = 'transcript';
-        
-        // Remettre le bouton normal
         btn.textContent = '🎤 Nouvelle dépense';
         btn.disabled = false;
     };
 }
-function stopRecording() {
-    if (isRecording) {
-        // Finaliser la reconnaissance
-        if (window.voskRecognizer) {
-            const finalResult = JSON.parse(window.voskRecognizer.finalResult());
-            if (finalResult.text) {
-                finalTranscript += finalResult.text;
-            }
-        }
-        
-        const transcript = finalTranscript.trim();
-        
-        if (transcript && transcript.length > 3) {
-            document.getElementById('transcript').innerText = transcript;
-            document.getElementById('transcript').className = 'transcript';
+
+
+function showManualInput() {
+    const text = prompt('Dictez votre dépense (ex: "50 euros essence Total mission Paris")');
+    if (text && text.trim()) {
+        document.getElementById('transcript').innerText = text;
+        parseSpeechWithGPT(text).then(output => {
+            document.getElementById('output').style.display = 'block';
+            document.getElementById('output').innerText = JSON.stringify(output, null, 2);
             
-            // Analyser avec ChatGPT
-            parseSpeechWithGPT(transcript).then(output => {
-                document.getElementById('output').style.display = 'block';
-                document.getElementById('output').innerText = JSON.stringify(output, null, 2);
-                
-                if (output && output.montant) {
-                    addExpense(output);
-                }
-            });
-        } else {
-            document.getElementById('transcript').innerText = 'Message trop court ou non reconnu. Réessayez.';
-        }
-        
-        cleanupVosk();
+            if (validateExpenseData(output)) {
+                addExpense(output);
+            } else {
+                document.getElementById('transcript').innerText = 'Données incomplètes extraites. Vérifiez votre saisie.';
+                alert('Impossible d\'extraire les données. Vérifiez le format de votre saisie.\nExemple : "50 euros essence Total mission Paris"');
+            }
+        }).catch(error => {
+            console.error('Erreur OpenAI:', error);
+            document.getElementById('transcript').innerText = 'Erreur lors du traitement. Réessayez.';
+        });
     }
 }
 
-function updateRecordingUI(recording) {
-    const btn = document.querySelector('button[onclick="startRecognition()"]');
-    const transcript = document.getElementById('transcript');
+
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('Initialisation de l\'application...');
     
-    if (recording) {
-        btn.textContent = '⏹️ Arrêter';
-        btn.className = 'btn primary recording';
-    } else {
-        btn.textContent = '🎤 Nouvelle dépense';
-        btn.className = 'btn primary';
-    }
-}
-
-function cleanupVosk() {
-    if (voskProcessor) {
-        voskProcessor.disconnect();
-        voskProcessor = null;
-    }
-    if (audioContext) {
-        audioContext.close();
-        audioContext = null;
-    }
-    if (audioStream) {
-        audioStream.getTracks().forEach(track => track.stop());
-        audioStream = null;
-    }
+    // Charger les utilisateurs en premier
+    await new Promise(resolve => {
+        loadUsers();
+        // Attendre que les utilisateurs soient chargés
+        const checkUsers = () => {
+            if (users.length > 0) {
+                resolve();
+            } else {
+                setTimeout(checkUsers, 100);
+            }
+        };
+        checkUsers();
+    });
     
-    isRecording = false;
-    updateRecordingUI(false);
-    finalTranscript = '';
-    currentTranscript = '';
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    // Désactiver le bouton vocal pendant l'initialisation
+    // Ensuite charger les dépenses
+    loadExpenses();
+    
+    // Corriger les dates après un délai
+    setTimeout(fixDatesInExpenses, 1000);
+    
+    // Initialiser l'interface
     const btn = document.querySelector('button[onclick="startRecognition()"]');
     if (btn) {
-        btn.disabled = true;
-        btn.textContent = '⏳ Chargement...';
+        btn.disabled = false;
+        btn.textContent = '🎤 Nouvelle dépense';
     }
     
-    loadUsers();
-    setTimeout(() => {
-        loadExpenses();
-        setTimeout(fixDatesInExpenses, 1000);
-        
-        // Initialiser Whisper après le chargement des données
-        setTimeout(initializeVosk, 500);
-    }, 500);
+    const statusElement = document.getElementById('transcript');
+    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+        statusElement.innerText = 'Reconnaissance vocale prête ! Cliquez sur "Nouvelle dépense" pour commencer.';
+    } else {
+        statusElement.innerText = 'Reconnaissance vocale non supportée. Saisie manuelle disponible.';
+    }
+    statusElement.className = 'transcript';
+    
+    console.log('Application initialisée avec succès');
 });
-
-// Supprimer les anciennes fonctions
-function hasWebSpeechAPI() {
-    return false; // Forcer Vosk uniquement
-}
-
-async function hasVoskSupport() {
-    return true; // Toujours disponible
-}
-
-
 
 async function parseSpeechWithGPT(text) {
     const res = await fetch('/api/openai-key');
@@ -528,8 +495,23 @@ Phrase : "${text}"
     }
 }
 
-
-
+// Fonction de validation des données extraites
+function validateExpenseData(data) {
+    if (!data) {
+        console.log('Validation échouée : pas de données');
+        return false;
+    }
+    if (!data.montant || isNaN(parseFloat(data.montant))) {
+        console.log('Validation échouée : montant invalide', data.montant);
+        return false;
+    }
+    if (!data.date) {
+        console.log('Validation échouée : pas de date');
+        return false;
+    }
+    console.log('Validation réussie :', data);
+    return true;
+}
 
 
 function addRow(data) {
@@ -617,19 +599,33 @@ function addPhoto(expenseId) {
 }
 
 function addExpense(data) {
-    // Ajouter un ID temporaire
-    if (!data.id) {
-        data.id = Date.now() + Math.random();
-    }
-    
     // Ajouter l'utilisateur actuel
     data.userId = getCurrentUser();
     data.userName = users.find(u => u.id === data.userId)?.name || 'Inconnu';
     
-    expenses.push(data);
-    sendExpense(data);
-    addRow(data);
-    updateSummary();
+    // Envoyer au serveur AVANT d'ajouter localement
+    fetch('/api/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.status === 'ok' && result.id) {
+            // Utiliser l'ID du serveur
+            data.id = result.id;
+            expenses.push(data);
+            addRow(data);
+            updateSummary();
+            console.log('Dépense ajoutée avec ID serveur:', result.id);
+        } else {
+            alert('Erreur lors de l\'ajout de la dépense');
+        }
+    })
+    .catch(err => {
+        console.error('Erreur sauvegarde:', err);
+        alert('Erreur lors de l\'ajout de la dépense');
+    });
 }
 
 function filterTable() {
@@ -784,19 +780,18 @@ async function exportPDF() {
     const doc = new jsPDF();
     
     // Récupérer les données filtrées
-    const start = document.getElementById('startDate').value;
-    const end = document.getElementById('endDate').value;
     const month = document.getElementById('monthFilter').value;
-    const text = document.getElementById('textFilter').value.toLowerCase();
+const text = document.getElementById('textFilter').value.toLowerCase();
+const userFilter = document.getElementById('userFilter').value;
     
-    let mStart = start, mEnd = end;
-    if (month) {
-        const [y, m] = month.split('-').map(Number);
-        const first = new Date(y, m - 1, 1);
-        const last = new Date(y, m, 0);
-        mStart = first.toISOString().slice(0,10);
-        mEnd = last.toISOString().slice(0,10);
-    }
+   let mStart = null, mEnd = null;
+if (month) {
+    const [y, m] = month.split('-').map(Number);
+    const first = new Date(y, m - 1, 1);
+    const last = new Date(y, m, 0);
+    mStart = first.toISOString().slice(0,10);
+    mEnd = last.toISOString().slice(0,10);
+}
     
     let filtered = expenses.filter(e => (!mStart || e.date >= mStart) && (!mEnd || e.date <= mEnd));
     if (text) {
