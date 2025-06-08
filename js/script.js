@@ -419,7 +419,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     const statusElement = document.getElementById('transcript');
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
-        statusElement.innerText = 'Reconnaissance vocale prête ! Cliquez sur "Nouvelle dépense" pour commencer.';
+        statusElement.innerText = 'Cliquez sur "Nouvelle dépense" pour commencer, puis dictez votre dépense en langage naturel : (Jai dépensé X euros, à la station/au snack/a la librairie etc... pour un repas/de l essence/des fournitures etc... pour la mission atelier/réunion/vernissage etc...)';
     } else {
         statusElement.innerText = 'Reconnaissance vocale non supportée. Saisie manuelle disponible.';
     }

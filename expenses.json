@@ -1,24 +1,35 @@
 [
   {
     "date": "2025-06-08",
-    "montant": 12,
+    "montant": 10,
     "type_depense": "REPAS",
-    "fournisseur": "STATION_ESSENCE",
+    "fournisseur": "STATION_D_ESSENCE",
     "mission": null,
-    "ligne_comptable": "DEP-REPAS-STATION_ESSENCE-",
-    "userId": "1749395420974",
-    "userName": "Kolkol",
-    "id": "b47212a3-d10a-421b-b0a4-0d2807b9c1a5"
+    "ligne_comptable": "DEP-REPAS-STATION_D_ESSENCE-",
+    "userId": "1749395415067",
+    "userName": "Utilisateur principal",
+    "id": "c4236cf4-08ed-4af4-bd67-a3c062c50cc0"
   },
   {
-    "date": "2025-06-08",
-    "montant": 65,
-    "type_depense": "frais de vernissage",
-    "fournisseur": "carrefour",
+    "date": "2025-06-06",
+    "montant": 22,
+    "type_depense": "essence",
+    "fournisseur": "station essence",
+    "mission": "de l'Est",
+    "ligne_comptable": "DEP-ESSENCE-STATION_ESSENCE-DE_L_EST",
+    "userId": "1749395415067",
+    "userName": "Utilisateur principal",
+    "id": "daf18729-4419-49ad-a70d-38a9e579af22"
+  },
+  {
+    "date": "2025-06-01",
+    "montant": 15,
+    "type_depense": "REPAS",
+    "fournisseur": "SNACK",
     "mission": "",
-    "ligne_comptable": "DEP-FRAIS_DE_VERNISSAGE-CARREFOUR-",
-    "userId": "1749395420974",
-    "userName": "Kolkol",
-    "id": "835940c3-4d75-467d-9d7a-a2b8d85a2e13"
+    "ligne_comptable": "DEP-REPAS-SNACK-",
+    "userId": "1749395415067",
+    "userName": "Utilisateur principal",
+    "id": "8c27b33b-b598-40b2-b75b-566df2f8d2b9"
   }
 ]
