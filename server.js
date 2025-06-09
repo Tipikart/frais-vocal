@@ -43,14 +43,45 @@ function checkIPLimit(req, res, next) {
     next();
 }
 
-// Middleware pour nettoyer les paramètres Facebook
+// Middleware pour nettoyer les paramètres de tracking
 app.use((req, res, next) => {
-    // Si l'URL contient fbclid, rediriger vers l'URL propre
-    if (req.query.fbclid) {
-        const cleanUrl = req.protocol + '://' + req.get('host') + req.path;
+    console.log('URL reçue:', req.originalUrl);
+    console.log('Query params:', req.query);
+    
+    // Liste des paramètres de tracking à supprimer
+    const trackingParams = ['fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'gclid', '_gl'];
+    const hasTrackingParams = trackingParams.some(param => req.query[param]);
+    
+    if (hasTrackingParams) {
+        // Construire l'URL propre
+        const baseUrl = `${req.protocol}://${req.get('host')}${req.path}`;
+        
+        // Garder seulement les paramètres non-tracking
+        const cleanQuery = {};
+        Object.keys(req.query).forEach(key => {
+            if (!trackingParams.includes(key)) {
+                cleanQuery[key] = req.query[key];
+            }
+        });
+        
+        // Construire la query string propre
+        const queryString = Object.keys(cleanQuery).length > 0 
+            ? '?' + new URLSearchParams(cleanQuery).toString()
+            : '';
+        
+        const cleanUrl = baseUrl + queryString;
+        
+        console.log('Redirection vers:', cleanUrl);
         return res.redirect(301, cleanUrl);
     }
+    
     next();
+});
+
+// Route spécifique pour la page d'accueil
+app.get('/', (req, res) => {
+    console.log('Accès à la racine:', req.originalUrl);
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.use(express.static(__dirname));
