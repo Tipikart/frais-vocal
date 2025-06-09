@@ -493,3 +493,48 @@ body {
         max-width: 150px;
     }
 }
+
+.summary {
+    font-size: 1.1em;
+    color: #2c3e50;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.summary-header {
+    font-size: 1.2em;
+    margin-bottom: 8px;
+}
+
+.user-totals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-top: 8px;
+}
+
+.user-total {
+    background: #e8f4fd;
+    padding: 4px 12px;
+    border-radius: 15px;
+    font-size: 0.9em;
+    color: #2980b9;
+    border: 1px solid #bde0ff;
+}
+
+/* Version mobile */
+@media (max-width: 768px) {
+    .user-totals {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .user-total {
+        text-align: center;
+    }
+    
+    .summary-header {
+        text-align: center;
+        margin-bottom: 12px;
+    }
+}

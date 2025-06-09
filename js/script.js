@@ -728,10 +728,45 @@ function resetFilters() {
 }
 
 function updateSummary(list = expenses) {
-    const total = list.reduce((sum, e) => sum + (parseFloat(e.montant) || 0), 0);
-    document.getElementById('summary').innerText = `Total: ${total.toFixed(2)} € (${list.length} dépense${list.length > 1 ? 's' : ''})`;
+    const userFilter = document.getElementById('userFilter').value;
+    
+    if (userFilter) {
+        // Affichage pour un utilisateur spécifique
+        const userExpenses = list.filter(e => e.userId === userFilter);
+        const userTotal = userExpenses.reduce((sum, e) => sum + (parseFloat(e.montant) || 0), 0);
+        const userName = users.find(u => u.id === userFilter)?.name || 'Utilisateur';
+        
+        document.getElementById('summary').innerHTML = `
+            <strong>${userName}:</strong> ${userTotal.toFixed(2)} € (${userExpenses.length} dépense${userExpenses.length > 1 ? 's' : ''})
+        `;
+    } else {
+        // Affichage pour tous les utilisateurs
+        const totalGeneral = list.reduce((sum, e) => sum + (parseFloat(e.montant) || 0), 0);
+        
+        // Calculer les totaux par utilisateur
+        const userTotals = users.map(user => {
+            const userExpenses = list.filter(e => e.userId === user.id);
+            const userTotal = userExpenses.reduce((sum, e) => sum + (parseFloat(e.montant) || 0), 0);
+            return {
+                name: user.name,
+                total: userTotal,
+                count: userExpenses.length
+            };
+        }).filter(u => u.count > 0); // Afficher seulement les utilisateurs avec des dépenses
+        
+        let summaryHTML = `<div class="summary-header"><strong>Total général: ${totalGeneral.toFixed(2)} € (${list.length} dépense${list.length > 1 ? 's' : ''})</strong></div>`;
+        
+        if (userTotals.length > 1) {
+            summaryHTML += '<div class="user-totals">';
+            userTotals.forEach(user => {
+                summaryHTML += `<div class="user-total">${user.name}: ${user.total.toFixed(2)} € (${user.count})</div>`;
+            });
+            summaryHTML += '</div>';
+        }
+        
+        document.getElementById('summary').innerHTML = summaryHTML;
+    }
 }
-
 function exportCSV() {
     const rows = document.getElementById('expense-table').getElementsByTagName('tr');
     let csv = [];
