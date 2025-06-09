@@ -43,6 +43,18 @@ function checkIPLimit(req, res, next) {
     next();
 }
 
+// Middleware pour nettoyer les paramètres Facebook
+app.use((req, res, next) => {
+    // Si l'URL contient fbclid, rediriger vers l'URL propre
+    if (req.query.fbclid) {
+        const cleanUrl = req.protocol + '://' + req.get('host') + req.path;
+        return res.redirect(301, cleanUrl);
+    }
+    next();
+});
+
+app.use(express.static(__dirname));
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.json({ limit: '20mb' }));
 app.use(express.static(__dirname));
